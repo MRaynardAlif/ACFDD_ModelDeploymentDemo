@@ -41,10 +41,15 @@ Preprocessing here happens in four distinct stages, spread across three files, a
 This isn't preprocessing an existing dataset, it's generating one. But it does the raw-feature engineering that would normally happen in a cleaning step:
 *  Sensor values are drawn per-unit from tiered rule ranges (Normal/Maintenance/Trouble), based on a stateful simulation of indoor temperature and compressor cycling.
 *  Four features are derived deterministically from the primitives, not sampled:
+
 row['Wattage (W)'] = row['Voltage (V)'] * row['Current (A)']
+
 row['Alpha (°C)'] = row['Temperature Indoor (°C)'] - row['Set Point (°C)']
+
 row['Beta (°C)']  = row['Temperature Outdoor (°C)'] - row['Set Point (°C)']
+
 row['Delta (°C)'] = row['Return (°C)'] - row['Supply (°C)']
+
 *  All numeric columns rounded to 2 decimals, Unit/Condition cast to ordered categoricals, then sorted by Unit → Condition → Time before writing out.
 
 ### Stage 2: Tiered scaling (TieredScaling.py)
