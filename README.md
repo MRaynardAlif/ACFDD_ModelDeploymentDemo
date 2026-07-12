@@ -1,7 +1,7 @@
 # ACFDD_ModelDeploymentDemo
 Source code and experiments applying Random Forest algorithms to the Air Conditioner FDD problem space.
 
-## 1. Dataset Description
+## 1. Training Dataset Description
 The synthetic data source provided for training and demonstration in this repository is **"best_synthetic_data.csv"**. This dataset is rule-based, fully synthetic data that has been engineered to simulate the complex, real-world thermodynamic and electrical patterns inherent to AC operations and faults. It serves as a highly representative proxy for real-world sensor logs, allowing users to train, test, and evaluate the fault diagnostic pipeline right out of the box.
 
 ## 2. Feature Input
@@ -36,7 +36,9 @@ This model is designed for a **Multiclass Classification** task. The prediction 
 *   `TROUBLE 3`     = UNSTABLE VOLTAGE, GENERATOR POWER SUPPLY
 
 ## 4. Preprocessing
+
 Preprocessing here happens in four distinct stages, spread across three files, and it's worth separating them because they're preprocessing very different things (synthetic generation, real data, and model input).
+
 ### Stage 1: Raw feature engineering (StaticDataGenerator.py)
 This isn't preprocessing an existing dataset, it's generating one. But it does the raw-feature engineering that would normally happen in a cleaning step:
 *  Sensor values are drawn per-unit from tiered rule ranges (Normal/Maintenance/Trouble), based on a stateful simulation of indoor temperature and compressor cycling.
@@ -55,9 +57,13 @@ row['Delta (°C)'] = row['Return (°C)'] - row['Supply (°C)']
 ### Stage 2: Tiered scaling (TieredScaling.py)
 This is the closest thing to a classic "preprocessing" step, and it's a custom piecewise normalization rather than anything like z-score/min-max from sklearn:
 *  For Current, Wattage, Alpha, Beta, Delta: each unit's own Normal-range min/max maps to [0,1]; below/above that maps into [-1,0) or (1,2] using the Maintenance-range bounds as the new min/max for that segment; beyond the Maintenance bounds it keeps extrapolating past -1/2 unbounded (no clipping):
+
 if n_min <= value <= n_max:      return (value - n_min) / n_range
+
 elif m_min <= value < n_min:     return -1 + (value - m_min) / m_range_low
+
 elif n_max < value <= m_max:     return 1 + (value - n_max) / m_range_high
+
 *  Voltage gets a different, simpler treatment. Plain linear scaling against a single global 196–265V band, not the per-unit tiered logic the other five features get.
 *  Output: the scaled columns (Current_scaled, Voltage_scaled, etc.) are inserted next to their raw counterparts, not replacing them, so the model ultimately sees both.
 *  No standardization, no outlier clipping, no missing-value imputation anywhere in this step.
@@ -80,13 +86,43 @@ The Random Forest algorithm is exceptionally well-suited for Air Conditioner Fau
 
 ### How is the model performance?
 When evaluated against the real-world ACFDD datasets, the model achieved the following diagnostic metrics:
-*   **Precision:** `0.9713` (97.13%)
-*   **F1-Score:** `0.9271` (92.71%)
-*   **Recall:** `0.8939` (89.39%)
+
+**On 30% Split Real Data (in the Coevolution Loop):**
+
+<img width="497" height="264" alt="image" src="https://github.com/user-attachments/assets/ee8d9f87-d776-428f-a71f-3b9bd45fece4" />
+
+
+*   **Accuracy:** `0.9302` (93.02%)
+*   **Precision:** `0.9795` (97.95%)
+*   **F1-Score:** `0.9530` (95.30%)
+*   **Recall:** `0.9302` (93.02%)
+
+This "best" number is worth pausing on, support=0 for ABNORMAL, TROUBLE 1, TROUBLE 2, and TROUBLE 3 means real validation set (Dataset_Test_30.csv) has zero true examples of those conditions. It only actually contains NORMAL, MAINTENANCE 1, and MAINTENANCE 2. Since support is 0, those rows only appear because the model did predict ABNORMAL/TROUBLE 1/TROUBLE 2/TROUBLE 3 for some real rows, just with zero true instances to match against and the model is producing false positives for fault types that real validation data can't confirm or deny it on.
+
+<img width="2000" height="1600" alt="confusion_matrix_best_model" src="https://github.com/user-attachments/assets/6ebf5ece-cf43-4af0-83af-420b7cadf785" />
+
+4 out of 7 fault classes (ABNORMAL, TROUBLE 1, TROUBLE 2, TROUBLE 3) have zero real-world validation. Where the real errors actually are:
+*   **MAINTENANCE 2** (348 real examples): perfect, 348/348 on the diagonal. Genuinely solid.
+*   **MAINTENANCE 1** (724 examples): 702 correct, 22 leak into TROUBLE 1 (~3%). A nearby-severity confusion, not alarming.
+*   **NORMAL** (1680 examples): only 1510 correct. The other 170 healthy units (10.1%) get flagged as something else. Specifically 77 as ABNORMAL, 32 as MAINTENANCE 1, 28 as TROUBLE 1, 27 as MAINTENANCE 2, and 6 as TROUBLE 3.
+
+**On 70% Split Real Data (held-out):**
+
+<img width="501" height="289" alt="image" src="https://github.com/user-attachments/assets/87ed10c5-9689-4b3a-90a5-a9674e2147f8" />
+
+The NORMAL false-alarm rate is real and stable, not sampling noise. 89.9% → 89.4% recall is about as close as two independent samples get. And the shape of the errors replicates too. Proportionally, healthy units still get misclassified as ABNORMAL most often (~42-45% of the errors both times), then TROUBLE 1, then MAINTENANCE 1/2, then rarely TROUBLE 3.That consistency across two disjoint samples means this isn't noiseit's a genuine decision-boundary issue where the model's learned NORMAL region has real, reproducible overlap with several fault regions in feature space, most of all ABNORMAL.
+
+<img width="2400" height="1800" alt="confusion_matrix" src="https://github.com/user-attachments/assets/12f32605-7c94-4b24-b448-20eea7b27616" />
+
+The genuinely good news, made more credible by this is MAINTENANCE 2 at 100% recall on both an in-search split and a fully held-out split of more than double the size is a real, well-supported result, not luck. Same for the overall ~95-96% weighted F1 holding steady. This is exactly the kind of double-validation that makes a sim-to-real transfer claim defensible: This isn't reporting a number from the split that happened to influence the search, but reporting one that replicates on data the model never touched.
+
+**What's real here:**
+This model never saw a single row of real data during training. Every parameter it learned came from a rule-based synthetic generator. That's a legitimate sim-to-real transfer result. Zero-shot generalization from purely synthetic sensor data to a physical AC unit, with no domain adaptation beyond the tiered scaling, landing in the 90-100% range on 3 of 3 testable classes. This is the kind of result that justifies the whole "model-data coevolution" approach as a concept. It's not a trivial outcome, a naively-generated synthetic dataset frequently transfers far worse than this. Still, the strong result on MAINTENANCE 1/2/NORMAL doesn't tell anything about ABNORMAL/TROUBLE 1/2/3. Those are just untested, not implicitly validated by the other classes doing well. Sim-to-real transfer quality isn't guaranteed to be uniform across classes, especially fault classes that rarer/more extreme in the parameter space. The point is, it's a solid result on what's been tested, and it's an incomplete validation of the full 7-class system.
 
 ### What factors affect the model's result?
 While the model catches true faults flawlessly, the confusion matrix reveals a sim-to-real gap regarding the `NORMAL` baseline. Several factors influence this:
-* **High Sensitivity / Cautious Prediction:** The overall ~89% recall is primarily pulled down by the `NORMAL` class. Out of 1,680 truly normal instances, the model occasionally flagged them as faults (e.g., 105 as `TROUBLE 1`, 66 as `ABNORMAL`). The model prioritizes catching every possible issue, resulting in a conservative approach that generates some false alarms during normal operations.
+* **High Sensitivity / Cautious Prediction:** The overall ~93% recall is primarily pulled down by the `NORMAL` class. Out of 1,680 truly normal instances, the model occasionally flagged them as faults (e.g., 28 as `TROUBLE 1`, 77 as `ABNORMAL`). The model prioritizes catching every possible issue, resulting in a conservative approach that generates some false alarms during normal operations.
 * **Sensor Noise on Real Hardware:** Environmental variability and stochastic noise in real sensors can make perfectly normal operations occasionally mimic the synthetic signatures of a fault state. 
 * **Feature Engineering:** Refining the threshold calculations is critical to helping the model better differentiate between a genuine anomaly and a temporary, harmless environmental fluctuation.
+* **The Rule-Based Thresholds (from AdjustedRule.xlsx):** Since the whole synthetic dataset is generated from these, they set the ceiling on what's achievable before the coevolution loop even starts.
 
