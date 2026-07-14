@@ -1,3 +1,14 @@
+---
+title: AC Fault Detection & Diagnosis
+emoji: ❄️
+colorFrom: blue
+colorTo: cyan
+sdk: gradio
+sdk_version: "4.36.1"
+app_file: app.py
+pinned: false
+---
+
 # AC Unit Fault Detection & Diagnosis (AC-FDD)
 
 A real-time machine learning application for air conditioner telemetry analysis. This Gradio-based web app classifies the operating condition of split AC units and performs root-cause diagnosis using a hybrid pipeline of supervised and unsupervised models.
