@@ -144,9 +144,16 @@ def predict_condition(unit, current, voltage, temp_indoor, temp_outdoor, set_poi
     residuals = np.abs(ae_input_data[0] - reconstructed)
     mse = np.mean(residuals**2)
     
-    # Map residuals back to their feature names to find the culprit
-    feature_errors = dict(zip(ae_features, residuals))
-    worst_feature = max(feature_errors, key=feature_errors.get)
+    # Calibrated Baseline Constants
+    RESIDUAL_MEANS = np.array([0.06804, 0.09369, 0.21679, 0.05297, 0.05170, 0.22031])
+    RESIDUAL_STDS = np.array([0.08182, 0.14136, 0.13604, 0.04256, 0.12060, 0.13543])
+    
+    # Calculate Z-Scores (adding 1e-6 to prevent division by zero)
+    z_scores = (residuals - RESIDUAL_MEANS) / (RESIDUAL_STDS + 1e-6)
+    
+    # Map Z-scores back to their feature names to find the true statistical outlier
+    feature_z_scores = dict(zip(ae_features, z_scores))
+    worst_feature = max(feature_z_scores, key=feature_z_scores.get)
     worst_feature_clean = worst_feature.replace('_scaled', '')
     
     # Formulate the Diagnosis string
