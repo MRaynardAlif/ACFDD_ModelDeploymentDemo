@@ -2,7 +2,7 @@
 title: AC Fault Detection & Diagnosis
 emoji: ❄️
 colorFrom: blue
-colorTo: cyan
+colorTo: blue
 sdk: gradio
 sdk_version: "4.36.1"
 app_file: app.py
