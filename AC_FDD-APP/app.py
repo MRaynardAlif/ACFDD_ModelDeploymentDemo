@@ -145,8 +145,8 @@ def predict_condition(unit, current, voltage, temp_indoor, temp_outdoor, set_poi
     mse = np.mean(residuals**2)
     
     # Calibrated Baseline Constants
-    RESIDUAL_MEANS = np.array([0.06804, 0.09369, 0.21679, 0.05297, 0.05170, 0.22031])
-    RESIDUAL_STDS = np.array([0.08182, 0.14136, 0.13604, 0.04256, 0.12060, 0.13543])
+    RESIDUAL_MEANS = np.array([0.06804, 0.09369, 0.21679, 0.25297, 0.25170, 0.22031])
+    RESIDUAL_STDS = np.array([0.08182, 0.14136, 0.13604, 0.24256, 0.22060, 0.23543])
     
     # Calculate Z-Scores (adding 1e-6 to prevent division by zero)
     z_scores = (residuals - RESIDUAL_MEANS) / (RESIDUAL_STDS + 1e-6)
@@ -159,8 +159,10 @@ def predict_condition(unit, current, voltage, temp_indoor, temp_outdoor, set_poi
     # Formulate the Diagnosis string
     if prediction == "NORMAL" and mse < 0.08116: 
         diagnosis_msg = f"✅ System operating optimally. (MSE: {mse:.4f})"
+    elif prediction == "NORMAL" and mse >= 0.08116:
+        diagnosis_msg = f"⚠️ Early Warning: {worst_feature_clean} is drifting from baseline, but system is still operational. (MSE: {mse:.4f})"
     else:
-        diagnosis_msg = f"⚠️ {worst_feature_clean} Anomaly occurred. (Reconstruction MSE: {mse:.4f})"
+        diagnosis_msg = f"🛑 {worst_feature_clean} Anomaly occurred. (Reconstruction MSE: {mse:.4f})"
 
     return str(prediction), prob_dict, diagnosis_msg
 
