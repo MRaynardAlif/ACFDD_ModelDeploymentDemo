@@ -126,3 +126,12 @@ While the model catches true faults flawlessly, the confusion matrix reveals a s
 * **Feature Engineering:** Refining the threshold calculations is critical to helping the model better differentiate between a genuine anomaly and a temporary, harmless environmental fluctuation.
 * **The Rule-Based Thresholds (from AdjustedRule.xlsx):** Since the whole synthetic dataset is generated from these, they set the ceiling on what's achievable before the coevolution loop even starts.
 
+
+## 6. App Deployment Link:
+### 1.  Hugging Face: 
+https://huggingface.co/spaces/Raynrd/AC-Fault-Detection
+
+### 2. Gradio Modal:
+https://mraynardalif--ac-fault-detection-ui.modal.run/
+
+
