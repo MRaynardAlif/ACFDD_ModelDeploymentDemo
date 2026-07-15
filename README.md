@@ -56,7 +56,7 @@ row['Delta (°C)'] = row['Return (°C)'] - row['Supply (°C)']
 
 ### Stage 2: Tiered scaling (TieredScaling.py)
 This is the closest thing to a classic "preprocessing" step, and it's a custom piecewise normalization rather than anything like z-score/min-max from sklearn:
-*  For Current, Wattage, Alpha, Beta, Delta: each unit's own Normal-range min/max maps to [0,1]; below/above that maps into [-1,0) or (1,2] using the Maintenance-range bounds as the new min/max for that segment; beyond the Maintenance bounds it keeps extrapolating past -1/2 unbounded (no clipping):
+*  For Current, Wattage, Alpha, Beta, Delta: each unit's own Normal-range min/max maps to [0,1]; below/above that maps into [-1,0) or (1,2] using the Maintenance-range bounds as the new min/max for that segment; beyond the Maintenance bounds it keeps extrapolating past -1/2 unbounded (no clipping for Trouble Condition). This guarantees that when the Autoencoder sees a value like 1.5, it instantly knows the parameter is in a degraded state, regardless of whether that number represents 6 Amps on a 0.5PK unit or 12 Amps on a 2.5PK unit:
 
 if n_min <= value <= n_max:      return (value - n_min) / n_range
 
@@ -74,14 +74,14 @@ Covered in detail earlier, independent Gaussian jitter and multiplicative drift 
 ### Stage 4: Model-input prep (RandomForestClassifier.py / RFClassifierValidation.py)
 There are two script for two distinct sides of the AC-FDD machine learning architecture. It separated the training logic for unsupervised diagnostic model (the Autoencoder) and supervised detection model (the Random Forest). Here is a breakdown of both training pipelines:
 
-#### RandomForestClassifier.py:
+#### RandomForestClassifier.py (Random Forest):
 This script builds the frontline guard that classifies the severity of the system's state. Wrapped in an object-oriented RFModel class, which makes it highly reusable.
 *  Feature selection is just df.select_dtypes(include=['number']). This is the only "feature selection" happening. No manual column drops, no correlation filtering.
 *  Stratified 70/30 train_test_split on Condition, random_state=42. No scaling step here, since RF is scale-invariant, and the data's already been through the Stage 2 tiered transform anyway.
 *  No standardization/normalization applied at this stage. Whatever scale Stage 2 produced is what the RF trains on directly.
 *  Real-data alignment (RFClassifierValidation.py): numeric columns selected from the real CSV, then reconciled against the training feature list. Any column the model was trained on but missing from real data gets filled with a constant 0.0, extras get dropped, and columns get reordered to match training order exactly.
 
-#### train_and_save.py:
+#### train_and_save.py (Autoencoder):
 This script is responsible for building the baseline understanding of a healthy air conditioner.
 *  The crucial filter, df_synth[(df_synth['Condition'] == 'NORMAL')]. This is the most important line in the script. Intentionally blinding the model to any faults, forcing it to only learn the mathematical signature of perfect thermodynamic operation.
 *  The Bottleneck Architecture, fully connected neural network using the Keras Functional API. With 6 scaled features input, Compression (Encoder) that squeezes down to a 3-neuron bottleneck to force the network to learn the physical relationships rather than just memorizing the data, Reconstruction (Decoder), and finally, outputs the reconstructed 6 features using a linear activation (to predict continuous numerical values).
@@ -130,9 +130,6 @@ This model acts as a mathematical proxy for the laws of physics. By forcing 6 fe
 #### How is the model performance?
 This is evaluated by observing the Mean Squared Error (MSE) distribution. Demonstrated with the reconstruction error on healthy data is tightly grouped (e.g., strictly under the 99th percentile threshold of 0.07172). Then, tested when anomalous data is introduced, the MSE drastically spikes above this threshold, proving the diagnostic trigger is mathematically sound.
 
-**What's real here:**
-This model never saw a single row of real data during training. Every parameter it learned came from a rule-based synthetic generator. That's a legitimate sim-to-real transfer result. Zero-shot generalization from purely synthetic sensor data to a physical AC unit, with no domain adaptation beyond the tiered scaling, landing in the 90-100% range on 3 of 3 testable classes. This is the kind of result that justifies the whole "model-data coevolution" approach as a concept. It's not a trivial outcome, a naively-generated synthetic dataset frequently transfers far worse than this. Still, the strong result on MAINTENANCE 1/2/NORMAL doesn't tell anything about ABNORMAL/TROUBLE 1/2/3. Those are just untested, not implicitly validated by the other classes doing well. Sim-to-real transfer quality isn't guaranteed to be uniform across classes, especially fault classes that rarer/more extreme in the parameter space. The point is, it's a solid result on what's been tested, and it's an incomplete validation of the full 7-class system.
-
 ### What factors affect the model's result?
 
 #### For The Random Forest:
@@ -145,7 +142,10 @@ While the model catches true faults flawlessly, the confusion matrix reveals a s
 #### For The Autoencoder:
 The accuracy of the diagnosis depends entirely on the mathematical relationships of the engineered features. For instance, the diagnostic parameter *β* strictly represents the environmental thermal gradient (*β* = Temperature Outdoor - Temperature Indoor). If this calculation were mistakenly altered (e.g., subtracting the set point instead), the Autoencoder's understanding of the thermal load would collapse, ruining the reconstruction accuracy. Since the Autoencoder maps a "normal" baseline, its results can be affected by extreme, unprecedented environmental conditions. If a heatwave pushes the ambient temperature far beyond the synthetic training distribution, the AC unit might operate in a highly stressed (but mechanically healthy) state that the Autoencoder has never seen, leading to an artificially high reconstruction error.
 
-## 6. App Deployment Link:
+## 6. What's real here:
+Those two model never saw a single row of real data during training. Every parameter it learned came from a rule-based synthetic generator. That's a legitimate sim-to-real transfer result. Zero-shot generalization from purely synthetic sensor data to a physical AC unit, with no domain adaptation beyond the tiered scaling, landing in the 90-100% range on 3 of 3 testable classes. This is the kind of result that justifies the whole "model-data coevolution" approach as a concept. It's not a trivial outcome, a naively-generated synthetic dataset frequently transfers far worse than this. Still, the strong result on MAINTENANCE 1/2/NORMAL doesn't tell anything about ABNORMAL/TROUBLE 1/2/3. Those are just untested, not implicitly validated by the other classes doing well. Sim-to-real transfer quality isn't guaranteed to be uniform across classes, especially fault classes that rarer/more extreme in the parameter space. The point is, it's a solid result on what's been tested, and it's an incomplete validation of the full 7-class system.
+
+## 7. App Deployment Link:
 ### 1.  Hugging Face: 
 https://huggingface.co/spaces/Raynrd/AC-Fault-Detection
 
