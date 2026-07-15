@@ -13,7 +13,7 @@ pinned: false
 
 A real-time machine learning application for air conditioner telemetry analysis. This Gradio-based web app classifies the operating condition of split AC units and performs root-cause diagnosis using a hybrid pipeline of supervised and unsupervised models.
 
-## ðŸ§  Model Architecture
+## Model Architecture
 
 The application relies on a two-stage inference pipeline to evaluate physical sensor readings:
 
