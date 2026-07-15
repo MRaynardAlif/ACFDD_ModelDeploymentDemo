@@ -1,32 +1,32 @@
 # -*- coding: utf-8 -*-
 """
 app.py - Gradio demo for the AC Fault Detection & Diagnosis model.
-
 Deploy this on a Hugging Face Space (SDK: gradio).
-
 Instead of a form of 17 raw feature boxes, this asks for the physical
 sensor readings a person would actually plug in (Unit type, Current,
 Voltage, Indoor/Outdoor Temp, Set Point, Supply, Return) and derives
 every engineered/scaled feature the exact same way the training
 pipeline does (TieredScaling.py), then aligns the result 
 to whatever model.feature_names_in_ expects.
-
 Required files in the Space repo:
     app.py              (this file)
     requirements.txt
     best_model.pkl (Random Forest for Fault Detection)      
-    ac_autoencoder.keras (Autoencoder for Diagnosis)
+    ac_autoencoder.h5 (Autoencoder for Diagnosis)
 """
 
 import joblib
 import pandas as pd
 import numpy as np
 import gradio as gr
+import os
 #import spaces
 from tensorflow.keras.models import load_model
 
-MODEL_PATH = "best_model.pkl"  
-AE_MODEL_PATH = "ac_autoencoder.keras"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "AC_FDD-APP", "Model-DataCoevolution", "CoevolutionResult", "best_model.pkl")  
+AE_MODEL_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "AC_FDD-APP", "AEModelTraining", "ac_autoencoder.h5")
 
 # --- Load model once at startup ---
 model = joblib.load(MODEL_PATH)
@@ -145,8 +145,8 @@ def predict_condition(unit, current, voltage, temp_indoor, temp_outdoor, set_poi
     mse = np.mean(residuals**2)
     
     # Calibrated Baseline Constants
-    RESIDUAL_MEANS = np.array([0.06804, 0.09369, 0.21679, 0.25297, 0.25170, 0.22031])
-    RESIDUAL_STDS = np.array([0.08182, 0.14136, 0.13604, 0.24256, 0.22060, 0.23543])
+    RESIDUAL_MEANS = np.array([0.01549, 0.02390, 0.22141, 0.05717, 0.02738, 0.22069])
+    RESIDUAL_STDS = np.array([0.02083, 0.02915, 0.13290, 0.05243, 0.06996, 0.13411])
     
     # Calculate Z-Scores (adding 1e-6 to prevent division by zero)
     z_scores = (residuals - RESIDUAL_MEANS) / (RESIDUAL_STDS + 1e-6)
@@ -157,9 +157,9 @@ def predict_condition(unit, current, voltage, temp_indoor, temp_outdoor, set_poi
     worst_feature_clean = worst_feature.replace('_scaled', '')
     
     # Formulate the Diagnosis string
-    if prediction == "NORMAL" and mse < 0.08116: 
+    if prediction == "NORMAL" and mse < 0.07172: 
         diagnosis_msg = f"✅ System operating optimally. (MSE: {mse:.4f})"
-    elif prediction == "NORMAL" and mse >= 0.08116:
+    elif prediction == "NORMAL" and mse >= 0.07172:
         diagnosis_msg = f"⚠️ Early Warning: {worst_feature_clean} is drifting from baseline, but system is still operational. (MSE: {mse:.4f})"
     else:
         diagnosis_msg = f"🛑 {worst_feature_clean} Anomaly occurred. (Reconstruction MSE: {mse:.4f})"
@@ -190,4 +190,4 @@ interface = gr.Interface(
 )
 
 if __name__ == "__main__":
-    interface.launch(ssr_mode=False)
+    interface.launch()
