@@ -24,3 +24,13 @@ The Validator module evaluates the trained model on the 30% of real-world valida
 Where *F1*, *P*, and *R* are the weighted average F1-score, Precision, and Recall from the validation report. *Div* is the feature divergence score, a simple metric (mean normalized difference between the real and synthetic feature means) used to penalize evolved datasets that drift too far from the real-world data's distribution. To prevent the evolutionary controller from overfitting to the specific distribution of the real-world data ("meta-overfitting"), a strict split were employed. The validation set (30% of real-world validation dataset) were used inside the closed-loop optimization to calculate the hybrid score and guide the controller. The holdout test set (70% of real-world validation dataset) were completely hidden from the optimization process. This 70% set is used strictly for the final generalization verification of the evolved policies.
 
 
+## The Result
+### Before Coevolution:
+
+<img width="518" height="295" alt="image" src="https://github.com/user-attachments/assets/647e7617-3c78-48f4-93b6-ccf351ec9e7e" />
+
+### After Coevolution:
+
+<img width="497" height="264" alt="image" src="https://github.com/user-attachments/assets/a3a25313-89ca-4839-86c0-37816a505991" />
+
+
