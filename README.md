@@ -153,3 +153,5 @@ https://huggingface.co/spaces/Raynrd/AC-Fault-Detection
 https://mraynardalif--ac-fault-detection-ui.modal.run/
 
 
+## 8. ACFDD Repository Presentation:
+https://youtu.be/tEJdUDRJ7_s
